@@ -6,21 +6,21 @@ from pathlib import Path
 import os
 
 # ══════════════════════════════════════════════════════════════
-#  CONFIGURACIÓN Y RUTAS (CORREGIDO PARA /PAGES)
+#  CONFIGURACIÓN Y RUTAS
 # ══════════════════════════════════════════════════════════════
 SECTORES = ["Corte", "Corte Laminado", "Canteado", "Perforación", "DVH", "Laminado", "Templado"]
 
-# Subimos un nivel para encontrar la DB en la raíz del proyecto
+# Buscamos la DB en la raíz (un nivel arriba de /pages)
 BASE_DIR = Path(__file__).parent.parent 
 DB_PATH = BASE_DIR / "produccion.db"
 
 st.set_page_config(page_title="Carga de Producción - Centurion", layout="centered")
 
-# Estilos visuales para los carteles
+# Estilos para el Check Verde y la interfaz
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; font-weight: bold; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; font-weight: bold; font-size: 18px; }
     .dup-box {
         padding: 15px;
         background-color: #441111;
@@ -30,14 +30,14 @@ st.markdown("""
         text-align: center;
         margin-bottom: 15px;
     }
-    .success-box {
-        padding: 15px;
-        background-color: #114411;
-        border: 1px solid #28a745;
-        border-radius: 10px;
-        color: #98ff98;
+    .success-panel {
+        padding: 25px;
+        background-color: #002b1b;
+        border: 2px solid #28a745;
+        border-radius: 15px;
+        color: #d4edda;
         text-align: center;
-        margin-top: 15px;
+        margin-top: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -47,11 +47,9 @@ st.markdown("""
 # ══════════════════════════════════════════════════════════════
 
 def es_duplicado(orden, sector):
-    """Chequea si la orden ya existe en ese sector específico"""
     if not orden.strip(): return False
     try:
         conn = sqlite3.connect(DB_PATH)
-        # Limpiamos espacios para que la comparación sea exacta
         query = "SELECT 1 FROM registros WHERE TRIM(orden) = ? AND sector = ? LIMIT 1"
         res = pd.read_sql_query(query, conn, params=(str(orden).strip(), sector))
         conn.close()
@@ -60,17 +58,14 @@ def es_duplicado(orden, sector):
         return False
 
 def guardar_registro(orden, carro, lado, usuario, sector):
-    """Guarda el nuevo registro en SQLite"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
         cursor.execute('''
             INSERT INTO registros (fecha_hora, orden, carro, lado, usuario, sector)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (fecha_hora, str(orden).strip(), carro, lado, usuario.strip(), sector))
-        
         conn.commit()
         conn.close()
         return True, None
@@ -81,7 +76,6 @@ def guardar_registro(orden, carro, lado, usuario, sector):
 #  INTERFAZ DE USUARIO
 # ══════════════════════════════════════════════════════════════
 
-# Inicializar estados de sesión
 if 'ultimo' not in st.session_state:
     st.session_state.ultimo = None
 
@@ -89,50 +83,59 @@ with st.sidebar:
     if st.button("🏠 Volver al Inicio"):
         st.switch_page("main.py")
     st.divider()
-    st.info("Escaneá el código de barras Centurion o cargá manualmente.")
+    st.write("Configuración de carga local activa.")
 
 st.title("📋 Carga de Producción")
 
-# --- FORMULARIO ---
+# --- FORMULARIO REORDENADO ---
 with st.container():
-    sector_sel = st.selectbox("📍 Sector", SECTORES)
+    # 1. OPERARIO AL PRINCIPIO
+    operario = st.text_input("👷 Operario / Usuario", placeholder="Escribí tu nombre o escaneá tu ID")
+    
+    st.divider()
+    
+    # 2. SECTOR Y DATOS DE ORDEN
+    sector_sel = st.selectbox("📍 Sector de Trabajo", SECTORES)
     
     col_ord, col_car, col_lad = st.columns([2, 1, 1])
     with col_ord:
         orden = st.text_input("🔢 Orden (Escáner)", key="input_orden")
     with col_car:
-        carro = st.number_input("🛒 Carro", min_value=1, value=1, step=1)
+        carro = st.number_input("🛒 Carro", min_value=1, value=1)
     with col_lad:
         lado = st.selectbox("↔️ Lado", ["A", "B", "C", "D"])
 
-    operario = st.text_input("👷 Operario / Usuario", placeholder="Tu nombre")
+    st.write("") # Espacio visual
 
-    st.divider()
-
-    # --- LÓGICA DE AVISOS Y CARGA ---
+    # --- LÓGICA DE AVISOS Y BOTÓN ---
     ya_existe = es_duplicado(orden, sector_sel)
     
-    # Solo mostrar cartel de duplicado si la orden no es la que acabamos de cargar ahora
+    # Solo mostramos advertencia si no es la orden que acabamos de registrar
     if orden.strip() and ya_existe:
         if st.session_state.ultimo is None or st.session_state.ultimo['orden'] != orden.strip():
             st.markdown(f'<div class="dup-box">⚠️ La orden {orden} ya existe en {sector_sel}</div>', unsafe_allow_html=True)
 
-    if st.button("✅ CARGAR REGISTRO", type="primary"):
+    if st.button("💾 REGISTRAR AHORA", type="primary"):
         if not operario.strip() or not orden.strip():
-            st.error("❌ Falta completar Orden u Operario.")
+            st.error("❌ ERROR: Tenés que poner tu nombre y el número de orden.")
         else:
             success, error = guardar_registro(orden, carro, lado, operario, sector_sel)
             if success:
-                # Guardamos en sesión para que el cartel rojo no moleste
-                st.session_state.ultimo = {"orden": orden.strip(), "sector": sector_sel}
-                st.balloons()
+                st.session_state.ultimo = {"orden": orden.strip(), "sector": sector_sel, "op": operario}
+                st.rerun() # Refrescamos para mostrar el cartel de éxito
             else:
-                st.error(f"Error al guardar: {error}")
+                st.error(f"Falla en base de datos: {error}")
 
-# --- MOSTRAR ÚLTIMO REGISTRO EXITOSO ---
+# --- CARTEL DE ÉXITO (EL CHECK VERDE) ---
 if st.session_state.ultimo:
     st.markdown(f'''
-        <div class="success-box">
-            ✅ REGISTRADO: {st.session_state.ultimo['orden']} ({st.session_state.ultimo['sector']})
+        <div class="success-panel">
+            <div style="font-size: 50px;">✅</div>
+            <div style="font-size: 22px; font-weight: bold;">¡REGISTRO EXITOSO!</div>
+            <div style="font-size: 16px; margin-top: 10px; opacity: 0.9;">
+                Orden: <b>{st.session_state.ultimo['orden']}</b><br>
+                Sector: {st.session_state.ultimo['sector']}<br>
+                Cargado por: {st.session_state.ultimo['op']}
+            </div>
         </div>
     ''', unsafe_allow_html=True)
