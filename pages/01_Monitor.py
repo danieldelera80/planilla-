@@ -108,7 +108,7 @@ for tab, s_nombre in zip(tabs, SECTORES):
                 conteo.columns = ['Operario', 'Carros']
                 fig = px.bar(conteo, x='Operario', y='Carros', color='Carros', 
                              text_auto=True, template="plotly_dark")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key=f"grafico_{s_nombre}")
             else:
                 st.info("No hay actividad hoy para graficar.")
 
