@@ -10,11 +10,10 @@ from pathlib import Path
 #  CONFIGURACIÓN
 # ══════════════════════════════════════════════════════════════
 SECTORES = ["Corte", "Corte Laminado", "Canteado", "Perforación", "DVH", "Laminado", "Templado"]
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).parent.parent  # Agregamos .parent para subir un nivel
 DB_PATH = BASE_DIR / "produccion.db"
 
 st.set_page_config(page_title="Carga de Producción", layout="centered")
-
 # Estilos visuales
 st.markdown("""
 <style>
