@@ -119,4 +119,4 @@ for tab, s_nombre in zip(tabs, SECTORES):
                          use_container_width=True, hide_index=True)
 
 st.divider()
-st.caption("Sistema de Monitoreo — Planta Centurion")
+st.caption("Sistema de Monitoreo — Planta Produccion")
